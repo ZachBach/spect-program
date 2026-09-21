@@ -1,0 +1,116 @@
+# Imaging and participant data must never enter this repository.
+#
+# This file is the first of two guards. It stops the accident. The second is
+# .githooks/pre-commit, which stops the deliberate override, because
+# `git add -f` ignores everything in here.
+#
+# PPMI Data Use Agreement v5.0 (April 2026) restricts redistribution of
+# participant-level data. Git history is effectively permanent: a file
+# committed and then deleted is still in the object store, still in every
+# clone, and still in every fork. There is no clean undo.
+
+# --- imaging formats ---------------------------------------------------------
+*.dcm
+*.DCM
+*.ima
+*.IMA
+*.nii
+*.nii.gz
+*.img
+*.hdr
+*.mhd
+*.mha
+*.raw
+*.nrrd
+*.nhdr
+*.v
+*.par
+*.rec
+*.analyze
+*.minc
+*.mnc
+
+# --- archives, which hide the above -----------------------------------------
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# --- data directories --------------------------------------------------------
+data/
+Data/
+DATA/
+dicom/
+DICOM/
+raw/
+ppmi/
+PPMI/
+naps/
+NAPS/
+dpuk/
+DPUK/
+cohorts/
+participants/
+derivatives/
+
+# --- tabular participant data ------------------------------------------------
+# PPMI ships clinical and binding-ratio tables as CSV. Keep every table
+# outside the repository; the loaders take a path from config, never a
+# committed file.
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.sav
+*.dta
+
+# Explicit exceptions: small, synthetic, and checked by a human before being
+# un-ignored. Add them one at a time with a reason, never with a wildcard.
+!tests/fixtures/synthetic_*.csv
+
+# --- model weights -----------------------------------------------------------
+# A model trained on participant-level PPMI data may only be shared through
+# routes MJFF approves. Code ships MIT; weights do not ship at all.
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.h5
+*.pkl
+*.joblib
+checkpoints/
+runs/
+wandb/
+mlruns/
+lightning_logs/
+
+# --- credentials -------------------------------------------------------------
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+loni_*.txt
+
+# --- ordinary python ---------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+
+# --- editor / os -------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+*.swp

@@ -1,0 +1,108 @@
+#!/bin/sh
+#
+# Block imaging and participant data from entering git history.
+#
+# .gitignore is the first guard and it is not enough: `git add -f` overrides
+# it, a mistyped pattern silently removes it, and tooling can stage files
+# without being asked. This hook runs on what is actually staged, whatever
+# put it there.
+#
+# Install once per clone:
+#     git config core.hooksPath .githooks
+#
+# There is no override flag. If this hook is wrong, fix the hook in a commit
+# someone reviews, or move the file out of the repository. A --force escape
+# hatch would be used at exactly the moment it should not be.
+#
+# Output is plain ASCII on purpose: this runs in a cp1252 terminal on Windows
+# and non-ASCII characters mangle.
+
+set -eu
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+blocked=""
+reason=""
+
+add_block() {
+    blocked="${blocked}  ${1}\n      ${2}\n"
+}
+
+# Size ceiling. A renamed volume is still a volume, and nothing this
+# repository legitimately tracks is large.
+MAX_BYTES=2097152
+
+for f in $staged; do
+    [ -f "$f" ] || continue
+
+    case "$f" in
+        # --- imaging formats ---
+        *.dcm|*.DCM|*.ima|*.IMA)
+            add_block "$f" "DICOM image." ;;
+        *.nii|*.nii.gz|*.img|*.hdr|*.mhd|*.mha|*.nrrd|*.nhdr|*.mnc|*.minc)
+            add_block "$f" "Volumetric image." ;;
+        *.v|*.par|*.rec|*.raw)
+            add_block "$f" "Raw or vendor reconstruction format." ;;
+
+        # --- archives that hide the above ---
+        *.zip|*.tar|*.tar.gz|*.tgz|*.7z|*.rar)
+            add_block "$f" "Archive. Unpack and stage individual files, or keep it outside the repo." ;;
+
+        # --- participant tables ---
+        *.csv|*.tsv|*.xlsx|*.xls|*.sav|*.dta)
+            case "$f" in
+                tests/fixtures/synthetic_*.csv)
+                    : ;;
+                *)
+                    add_block "$f" "Tabular data. PPMI and cohort tables live outside the repo; loaders take a path from config." ;;
+            esac ;;
+
+        # --- trained weights ---
+        *.pt|*.pth|*.ckpt|*.safetensors|*.onnx|*.h5|*.pkl|*.joblib)
+            add_block "$f" "Model weights. A model trained on participant-level data may only be shared through MJFF-approved routes." ;;
+
+        # --- credentials ---
+        .env|.env.*|*.pem|*.key|credentials.json)
+            add_block "$f" "Credential material." ;;
+    esac
+
+    # --- data directories, wherever they sit ---
+    case "$f" in
+        data/*|*/data/*|dicom/*|*/dicom/*|raw/*|*/raw/*|ppmi/*|*/ppmi/*|PPMI/*|*/PPMI/*|participants/*|*/participants/*|derivatives/*|*/derivatives/*)
+            add_block "$f" "Inside a data directory." ;;
+    esac
+
+    # --- content check: catches a volume renamed to something innocent ---
+    # DICOM files carry the magic string DICM at byte offset 128.
+    if head -c 132 "$f" 2>/dev/null | tail -c 4 | grep -q "DICM" 2>/dev/null; then
+        add_block "$f" "Contains the DICOM magic bytes at offset 128, whatever its extension says."
+    fi
+
+    # --- size ceiling ---
+    size=$(wc -c < "$f" 2>/dev/null | tr -d ' ')
+    if [ -n "$size" ] && [ "$size" -gt "$MAX_BYTES" ]; then
+        add_block "$f" "Larger than 2 MB. Nothing this repository tracks should be."
+    fi
+done
+
+if [ -n "$blocked" ]; then
+    printf '\n'
+    printf 'COMMIT BLOCKED: imaging or participant data is staged.\n'
+    printf '\n'
+    printf '%b' "$blocked"
+    printf '\n'
+    printf 'Git history is permanent. A file committed and then deleted is still\n'
+    printf 'in the object store, in every clone, and in every fork.\n'
+    printf '\n'
+    printf 'To proceed:\n'
+    printf '  git restore --staged <file>     remove it from this commit\n'
+    printf '  move the file outside the repository and point config at it\n'
+    printf '\n'
+    printf 'There is no override flag. If this hook is wrong, change the hook in a\n'
+    printf 'reviewed commit.\n'
+    printf '\n'
+    exit 1
+fi
+
+exit 0
