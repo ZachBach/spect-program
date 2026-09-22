@@ -4,6 +4,48 @@ One entry per decision that would otherwise be re-argued later. Newest first.
 
 ---
 
+## D3. The phantom saturates, so it cannot be used to compare methods
+
+**Date:** 2026-09-22
+**Status:** Recorded as a limitation. No change needed yet.
+
+The z-score baseline was measured against phantom cohorts of 30 controls and
+30 patients, scoring the worst putamen z-score:
+
+| putamen loss | control z | patient z | AUC |
+|---|---|---|---|
+| 0.15 | 0.00 +/- 0.98 | -1.99 +/- 1.64 | 0.852 |
+| 0.25 | 0.00 +/- 0.98 | -2.80 +/- 1.66 | 0.926 |
+| 0.40 | 0.00 +/- 0.98 | -4.11 +/- 1.61 | 0.992 |
+| 0.55 | 0.00 +/- 0.98 | -5.41 +/- 1.50 | 1.000 |
+
+At moderate loss the baseline separates the groups perfectly. There is no
+headroom left for a hybrid model to demonstrate anything, so **a comparison
+run on phantoms at these severities cannot produce a meaningful result** in
+either direction. Only the narrow band around 0.15 loss has any room, and even
+there the phantom is a geometric toy rather than a scan.
+
+This is the same saturation the handoff already recorded in the real
+literature: an SVM on binding ratios passed 96% for Parkinson's versus
+controls in 2014, and a plain ResNet50 reached 100% in a 2026 reproduction,
+which is why that classification task was excluded as a target. The phantom
+reproduces the saturation, which is mild evidence that the phantom is
+behaving, and strong evidence that separating patients from controls is the
+wrong question regardless of the data.
+
+**Consequence for the analysis plan.** The phantom's job is to prove the
+pipeline runs, that splits do not leak, and that metrics behave. It is not a
+testbed for whether the hybrid beats the baseline. That question needs the
+real prognostic outcome, time to milestone, which the phantom has no way to
+generate because nothing in it varies over time.
+
+**Implied next piece of work.** If the phantom is to support the survival
+arm at all, it needs a longitudinal mode: a subject whose loss progresses
+across simulated visits at a rate that the model is then asked to recover.
+Without that, the survival harness has nothing to be tested against.
+
+---
+
 ## D2. Disable the GitKraken Claude Code plugin in this repository
 
 **Date:** 2026-09-22
