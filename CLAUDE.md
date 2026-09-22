@@ -39,7 +39,7 @@ Two consequences that follow:
 
 ```sh
 git config core.hooksPath .githooks    # once per clone, before anything else
-python -m pytest                       # 118 tests, about 13 seconds
+python -m pytest                       # 150 tests, about 14 seconds
 python -m pytest tests/test_survival.py
 python -m pytest -k "leak or provenance"
 ```
@@ -56,6 +56,7 @@ src/spect/
   synthetic/
     phantom.py        DaT-SPECT phantoms, with PSF, Poisson noise, gradient
     cohort.py         Cohorts with between-subject variation
+    progression.py    Longitudinal trajectories, milestones, oracle ceiling
   features/
     binding_ratio.py  SBR per structure; asymmetry; putamen/caudate ratio
     normal_database.py  Z-score baseline, with the provenance guard
@@ -115,8 +116,10 @@ arithmetic and nothing about anatomy.
 - **The phantom saturates.** The z-score baseline reaches AUC 1.000 at 0.40
   putamen loss, so phantoms cannot compare baseline against hybrid. See D3 in
   `docs/decisions.md`.
-- **No time axis.** The phantom has no longitudinal mode, so it cannot
-  generate time-to-milestone. Needed before the hybrid model is trained.
+- **The prognostic task does have headroom**, unlike classification: the
+  oracle ceiling sits at 0.708 against a baseline-only 0.618 at default
+  settings. Always report a concordance next to `oracle_ceiling`, because
+  0.70 is at the ceiling rather than mediocre. See D4.
 - **Time-dependent AUC excludes subjects censored before the horizon.** That
   is unbiased only if censoring is independent of risk, which is usually
   optimistic. Inverse-probability-of-censoring weighting is the correction and

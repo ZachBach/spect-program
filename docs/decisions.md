@@ -4,6 +4,58 @@ One entry per decision that would otherwise be re-argued later. Newest first.
 
 ---
 
+## D4. The prognostic task has headroom, unlike the classification task
+
+**Date:** 2026-09-22
+**Status:** Measured. Resolves the blocker recorded in D3.
+
+D3 recorded that the cross-sectional phantom saturates: the z-score baseline
+reaches AUC 1.000 at 0.40 putamen loss, leaving nothing for a hybrid model to
+demonstrate. The longitudinal phantom was built to see whether the prognostic
+question behaves differently. It does.
+
+Latent severity drives an exponential hazard and is a weighted sum of
+baseline loss and progression rate. Rate is the part a single scan cannot
+see, because a rate is a difference and one measurement is not a difference.
+Six hundred subjects, 66% reaching a milestone:
+
+| rate weight | oracle ceiling | baseline only | two visits | gain |
+|---|---|---|---|---|
+| 0.0 | 0.644 | 0.644 | 0.644 | +0.000 |
+| 0.3 | 0.659 | 0.638 | 0.659 | +0.021 |
+| 0.7 | 0.708 | 0.618 | 0.708 | +0.090 |
+| 1.2 | 0.769 | 0.590 | 0.769 | +0.179 |
+
+Three things follow.
+
+**The ceiling is well below 1.0 at every setting.** Event times are drawn
+from an exponential, so even exact knowledge of the hazard cannot order them
+perfectly. There is no saturation to hide behind, and the room between the
+baseline and the ceiling is where a model has to earn its complexity. At the
+default rate weight of 0.7 that room is 0.618 to 0.708, about nine points.
+
+**The control holds.** At a rate weight of zero the two-visit model matches
+the baseline exactly. The fixture rewards the information in a second scan,
+not the existence of one. Without that check a longitudinal model would beat
+a cross-sectional one on this data no matter what it had learned, and any
+comparison run on it would have been worthless.
+
+**The ceiling must be reported next to any result.** A model scoring 0.70
+here is at the ceiling, not mediocre. Reporting concordance without the
+achievable maximum invites exactly the wrong reading, which is why
+`oracle_ceiling` ships alongside the generator rather than being left for
+someone to reconstruct.
+
+**What this does not establish.** The advantage is measured against a model
+given the true severity weights and an exactly recovered rate. Real
+measurements are noisy, and recovering a rate by inverting the decay
+amplifies that noise as loss approaches total. A real longitudinal model will
+land somewhere between 0.618 and 0.708, not at the top of it. The phantom
+says the information is present and recoverable in principle. It says nothing
+about whether a network will find it in a real scan.
+
+---
+
 ## D3. The phantom saturates, so it cannot be used to compare methods
 
 **Date:** 2026-09-22
