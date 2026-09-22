@@ -4,7 +4,7 @@ The cross-sectional phantom cannot support the survival question: it has no
 time axis, so there is nothing for a time-to-milestone model to be trained
 against. This adds one.
 
-Three design decisions carry the module.
+Four design decisions carry the module.
 
 **The outcome depends on progression rate, not only on baseline state.** A
 single scan shows how much binding is already lost. It cannot show how fast
@@ -24,6 +24,16 @@ measurement of the milestone itself, none of which a scan sees. Event times
 are drawn from an exponential with a proportional hazard, so there is an
 achievable ceiling below 1.0 and `oracle_ceiling` measures it. A model should
 be judged against that ceiling, not against perfection.
+
+**Part of the outcome is visible only in the spatial pattern.** Gradient
+steepness varies between subjects and can contribute to the hazard through
+`severity_from_gradient`. It is exactly invisible to a region mean: the
+gradient redistributes loss within the putamen while preserving its mean, so
+the binding ratio is unchanged to four decimal places while the
+posterior-to-anterior contrast moves from 0.99 to 0.89. Without a term like
+this, the outcome is a function of quantities region means already measure,
+and a model reading whole volumes has nothing left to find. See D5 in
+docs/decisions.md.
 
 **Binding decays exponentially toward total loss.** Loss is modelled as
 1 - (1 - loss_0) * exp(-rate * t), so a subject loses a fraction of what
@@ -64,10 +74,28 @@ class ProgressionSpec:
     progression_rate_mean: float = 0.18
     progression_rate_sd: float = 0.08
 
+    #: Per-subject steepness of the posterior-to-anterior gradient in putamen
+    #: loss. Varies between subjects so it can carry information; the
+    #: cross-sectional phantom holds it fixed.
+    gradient_mean: float = 0.5
+    gradient_sd: float = 0.25
+
     #: How much each contributes to the log hazard, in standard deviations.
-    #: The rate term is what a baseline-only model cannot see.
+    #:
+    #: The three terms are deliberately visible to different kinds of model.
+    #: Baseline loss is in any single scan. Rate needs two scans, because a
+    #: rate is a difference. Gradient steepness needs the spatial pattern
+    #: inside the structure, and is **exactly invisible to a region mean**:
+    #: the gradient redistributes loss within the putamen while preserving its
+    #: mean, so the binding ratio is unchanged to four decimal places while
+    #: the posterior-to-anterior contrast moves from 0.99 to 0.89.
+    #:
+    #: That makes "a model reading the volume beats one reading region means"
+    #: a claim this fixture can test rather than one it assumes. Set the
+    #: weight to zero and the advantage must vanish, which is the control.
     severity_from_baseline: float = 0.5
     severity_from_rate: float = 0.7
+    severity_from_gradient: float = 0.0
 
     #: Events per year at mean severity.
     baseline_hazard: float = 0.18
@@ -107,6 +135,10 @@ class ProgressionSpec:
             raise ValueError("baseline_hazard must be positive")
         if not 0.0 <= self.dropout_per_year < 1.0:
             raise ValueError("dropout_per_year must lie in [0, 1)")
+        if not 0.0 <= self.gradient_mean <= 1.0:
+            raise ValueError("gradient_mean must lie in [0, 1]")
+        if self.gradient_sd < 0:
+            raise ValueError("gradient_sd must not be negative")
 
 
 @dataclass(frozen=True)
@@ -135,6 +167,7 @@ class Subject:
     site_id: str
     baseline_loss: tuple[float, float]
     progression_rate: float
+    gradient: float
     latent_severity: float
     milestone_time: float
     observed_time: float
@@ -223,11 +256,15 @@ def generate_trajectories(spec: ProgressionSpec | None = None) -> list[Subject]:
     asymmetry = np.clip(
         rng.normal(spec.asymmetry_mean, spec.asymmetry_sd, spec.n_subjects), 0.0, None
     )
+    gradients = np.clip(
+        rng.normal(spec.gradient_mean, spec.gradient_sd, spec.n_subjects), 0.0, 1.0
+    )
 
     # Standardize so the severity weights are in standard deviations and the
     # baseline hazard keeps its meaning when the distributions are changed.
     latent = spec.severity_from_baseline * _standardize(baseline)
     latent = latent + spec.severity_from_rate * _standardize(rates)
+    latent = latent + spec.severity_from_gradient * _standardize(gradients)
 
     hazard = spec.baseline_hazard * np.exp(latent)
     milestone = rng.exponential(1.0 / hazard)
@@ -278,6 +315,7 @@ def generate_trajectories(spec: ProgressionSpec | None = None) -> list[Subject]:
                 site_id=f"site-{i % 5}",
                 baseline_loss=(worse, better),
                 progression_rate=float(rates[i]),
+                gradient=float(gradients[i]),
                 latent_severity=float(latent[i]),
                 milestone_time=float(milestone[i]),
                 observed_time=float(observed[i]),
@@ -315,6 +353,7 @@ def render(subject: Subject, spec: ProgressionSpec | None = None) -> list[Phanto
                     spec.base_phantom,
                     putamen_loss=visit.putamen_loss,
                     caudate_loss=visit.caudate_loss,
+                    posterior_gradient=subject.gradient,
                     seed=seed,
                 )
             )

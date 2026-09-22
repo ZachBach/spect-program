@@ -39,14 +39,18 @@ Two consequences that follow:
 
 ```sh
 git config core.hooksPath .githooks    # once per clone, before anything else
-python -m pytest                       # 182 tests, about 15 seconds
+python -m pytest                       # 213 tests, about 25 seconds
 python -m pytest tests/test_survival.py
 python -m pytest -k "leak or provenance"
 ```
 
 `pyproject.toml` sets `pythonpath = ["src"]`, so no install is needed to run
-tests. Dependencies are numpy and pytest. scipy is deliberately not a
-dependency; the point-spread blur is implemented directly in `phantom.py`.
+tests. Core dependencies are numpy and pytest. scipy is deliberately not one;
+the point-spread blur is implemented directly in `phantom.py`.
+
+torch is optional and only `models/hybrid.py` imports it, so the rest of the
+codebase runs without it and `tests/test_hybrid.py` skips. CPU build:
+`pip install torch --index-url https://download.pytorch.org/whl/cpu`
 
 ## Layout
 
@@ -59,12 +63,14 @@ src/spect/
     progression.py    Longitudinal trajectories, milestones, oracle ceiling
   features/
     binding_ratio.py  SBR per structure; asymmetry; putamen/caudate ratio
+    spatial.py        Posterior/anterior contrast; what a region mean discards
     normal_database.py  Z-score baseline, with the provenance guard
   eval/
     splits.py         Leak-proof split construction
     survival.py       Concordance, Kaplan-Meier, time-dependent AUC, calibration
   models/
     cox.py            Cox PH baseline, Newton-Raphson, Breslow ties
+    hybrid.py         3D CNN plus tabular fusion, Cox loss (needs torch)
   io/ preprocess/            empty; see README
 ```
 
@@ -126,14 +132,14 @@ arithmetic and nothing about anatomy.
   is unbiased only if censoring is independent of risk, which is usually
   optimistic. Inverse-probability-of-censoring weighting is the correction and
   is not implemented. `excluded_censored` reports the exposure.
-- **The baseline nearly saturates the phantom too.** Held-out C is 0.606
-  against a 0.642 ceiling, because latent severity is built from quantities
-  binding ratios measure directly. A CNN trained on these phantoms would be
-  learning to reconstruct a binding ratio. See D5 before reading any hybrid
-  result off this fixture.
-- **No deep learning dependency is installed.** numpy only; no torch, scipy,
-  lifelines or scikit-survival. Adding torch is the owner's decision, not a
-  detail to settle while implementing.
+- **`severity_from_gradient` defaults to zero.** With it at zero the outcome
+  is a function of quantities region means measure directly, so a network is
+  learning to reconstruct a binding ratio and its score is a smoke test. Set
+  it above zero before any hybrid result is read off this fixture, and check
+  the network also beats `features/spatial.py`. See D5.
+- **Seed the model as well as the training loop.** Weights are initialized at
+  construction, so `train(seed=...)` alone leaves runs starting from different
+  weights while appearing seeded.
 - **The GitKraken plugin is disabled here** and the override has not been
   verified empirically. See D2 in `docs/decisions.md`.
 

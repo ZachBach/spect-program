@@ -6,6 +6,11 @@ from .binding_ratio import (
     regions_from_phantom,
     specific_binding_ratio,
 )
+from .spatial import (
+    SpatialContrast,
+    posterior_anterior_contrast,
+    spatial_features,
+)
 from .normal_database import (
     MINIMUM_SUBJECTS,
     NormalDatabase,
@@ -15,6 +20,9 @@ from .normal_database import (
 __all__ = [
     "MINIMUM_SUBJECTS",
     "NormalDatabase",
+    "SpatialContrast",
+    "posterior_anterior_contrast",
+    "spatial_features",
     "RegionRatios",
     "binding_ratios",
     "build_normal_database",

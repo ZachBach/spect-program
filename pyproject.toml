@@ -12,6 +12,8 @@ dependencies = ["numpy>=2.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+# CPU build: pip install torch --index-url https://download.pytorch.org/whl/cpu
+hybrid = ["torch>=2.0"]
 
 # Packages live under src/spect/ rather than src/ directly. A package named
 # `io` at the top level would shadow the standard library module of the same

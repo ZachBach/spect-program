@@ -7,7 +7,8 @@ One entry per decision that would otherwise be re-argued later. Newest first.
 ## D5. The phantom still cannot demonstrate a hybrid advantage, for a second reason
 
 **Date:** 2026-09-22
-**Status:** Open. Blocks the CNN half of S6-5 from being meaningful.
+**Status:** Resolved 2026-09-22 by adding `severity_from_gradient`. The
+measurement below stands as the reason it was needed.
 
 The Cox baseline was run end to end on phantoms: trajectories, rendered
 volumes, binding ratios read off those volumes, leave-one-site-out, fit on
@@ -52,10 +53,26 @@ That change needs the same control D4 has: with the gradient weight at zero,
 the volume model must not beat the region-mean model, or the fixture is
 rewarding capacity rather than information.
 
-**Until then**, a CNN trained on these phantoms would be measuring its own
-ability to reconstruct a binding ratio. That is a useful smoke test for the
-training loop and nothing more, and it must not be reported as evidence about
-the hybrid hypothesis.
+**What was done.** `severity_from_gradient` was added, defaulting to zero so
+existing behaviour is unchanged. Gradient steepness now varies per subject and
+the phantom renders each subject with their own. The property it relies on was
+measured first: across gradients of 0.0 to 0.9 the putamen binding ratio is
+identical to four decimal places, 0.7037 throughout, while the
+posterior-to-anterior contrast moves 0.99 to 0.89. The region mean is not
+approximately blind to the gradient, it is exactly blind by construction.
+
+`features/spatial.py` recovers it with arithmetic, and the validation pair in
+`tests/test_spatial.py` holds: spatial features improve concordance when the
+weight is positive, and do not when it is zero.
+
+**The bar this sets.** A network beating the region-mean baseline on this
+fixture has to beat a posterior/anterior split too. Anything a two-number
+contrast can find is not evidence that a network was needed. And if a network
+fails to beat the region mean, the spatial feature establishes the information
+was there, so the failure belongs to the model.
+
+**Still true**: with `severity_from_gradient` left at its default of zero, a
+CNN is learning to reconstruct a binding ratio and its score is a smoke test.
 
 ---
 
