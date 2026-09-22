@@ -1,0 +1,144 @@
+# CLAUDE.md
+
+Guidance for Claude Code working in this repository.
+
+## What this is
+
+Hybrid CNNs for brain SPECT, predicting time to a first clinically meaningful
+milestone in early Parkinson's disease. Research use only. Owner: Zachary
+Auerbach, doing business as Aurelius Dynamic.
+
+No data has been received. Everything here runs on synthetic phantoms.
+
+## Rule 1, which overrides convenience
+
+**Never load participant-level PPMI data into an AI tool, including this one.**
+
+PPMI's Data Use Agreement v5.0 (April 2026) prohibits AI tools that cannot
+guarantee containment of the data. That covers this session. Work from code,
+file schemas, synthetic phantoms and aggregate outputs only.
+
+This is easier to break than it looks. Reading a participant file into
+context, printing one with a shell command, or pasting an error containing a
+row of it all move the data somewhere it may not be. The rule is about where
+bytes end up, not about intent. If a task seems to need participant-level
+data in context, stop and say so rather than finding a way.
+
+Treat NAPS2, Dementias Platform UK and every other clinical dataset the same
+way until their own terms say otherwise.
+
+Two consequences that follow:
+
+- **Trained weights stay private.** A model trained on participant-level PPMI
+  data may only be shared through routes MJFF approves. Code ships MIT.
+- **No clinical claims.** FDA's clinical decision support guidance, revised
+  6 January 2026, treats software that analyses a medical image to produce
+  findings as a medical device. Nothing here diagnoses.
+
+## Commands
+
+```sh
+git config core.hooksPath .githooks    # once per clone, before anything else
+python -m pytest                       # 118 tests, about 13 seconds
+python -m pytest tests/test_survival.py
+python -m pytest -k "leak or provenance"
+```
+
+`pyproject.toml` sets `pythonpath = ["src"]`, so no install is needed to run
+tests. Dependencies are numpy and pytest. scipy is deliberately not a
+dependency; the point-spread blur is implemented directly in `phantom.py`.
+
+## Layout
+
+```
+src/spect/
+  provenance.py       Provenance enum and ProvenanceError; shared
+  synthetic/
+    phantom.py        DaT-SPECT phantoms, with PSF, Poisson noise, gradient
+    cohort.py         Cohorts with between-subject variation
+  features/
+    binding_ratio.py  SBR per structure; asymmetry; putamen/caudate ratio
+    normal_database.py  Z-score baseline, with the provenance guard
+  eval/
+    splits.py         Leak-proof split construction
+    survival.py       Concordance, Kaplan-Meier, time-dependent AUC, calibration
+  io/ preprocess/ models/    empty; see README
+```
+
+## Guards, and why none of them have an override
+
+Four checks are structural rather than advisory. Each guards a failure that
+produces no error and no warning, only a wrong number that looks right. Do not
+add a bypass flag to any of them; the moment someone wants one is the moment
+it is working.
+
+**`.githooks/pre-commit`** blocks imaging, participant tables and weights from
+git. Checks DICOM magic bytes at offset 128, so a renamed volume is still
+caught. History is permanent and there is no clean undo.
+
+**`Split.__post_init__`** refuses any partition placing one subject on both
+sides. Yagis 2021 (doi:10.1038/s41598-021-01681-w) measured 48 points of
+accuracy inflation from slice-level splits on PPMI, and about 96% accuracy on
+randomly shuffled labels. The subtle case is a participant who transferred
+centres: leave-one-site-out looks airtight and is not.
+
+**`NormalDatabase.z_scores`** refuses to score a real scan against a
+synthetic database, and `subject_provenance` has no default so the claim must
+be written out before it can be refused.
+
+**`concordance_index`** raises when no pairs are comparable rather than
+returning 0.5. A censored subject with the earlier time is comparable with
+nobody.
+
+## Conventions this codebase holds to
+
+**State the convention, do not assume it.** Concordance implementations
+disagree on tied times and tied predictions. What `survival.py` does is
+written in its docstrings and tested against hand-computed values, not
+against another library.
+
+**Test against known truth, not against plausibility.** Phantoms carry the
+nominal ratios they were built from. Survival metrics are checked against
+values computed by hand in the test docstring. A test that only asserts a
+number looks reasonable will pass when the code is wrong.
+
+**Model the degradations.** The phantom includes partial volume blur, Poisson
+noise and the posterior-to-anterior gradient because omitting any of them
+makes the fixture easier than reality in the direction that flatters a model.
+
+**Regions are inputs, never derived inside a calculator.** Testing arithmetic
+and testing registration must stay separable. Every current test proves the
+arithmetic and nothing about anatomy.
+
+## Known limits, recorded so they are not rediscovered
+
+- **The phantom saturates.** The z-score baseline reaches AUC 1.000 at 0.40
+  putamen loss, so phantoms cannot compare baseline against hybrid. See D3 in
+  `docs/decisions.md`.
+- **No time axis.** The phantom has no longitudinal mode, so it cannot
+  generate time-to-milestone. Needed before the hybrid model is trained.
+- **Time-dependent AUC excludes subjects censored before the horizon.** That
+  is unbiased only if censoring is independent of risk, which is usually
+  optimistic. Inverse-probability-of-censoring weighting is the correction and
+  is not implemented. `excluded_censored` reports the exposure.
+- **The GitKraken plugin is disabled here** and the override has not been
+  verified empirically. See D2 in `docs/decisions.md`.
+
+## Writing style for this project
+
+From the owner's handoff, and it applies to code comments, docs and replies:
+
+- No em dashes, and avoid en dashes too.
+- Plain, human voice.
+- Every factual claim gets a source. Anything unverified is labelled
+  unverified. Citations in this repo carry a DOI or a PubMed id.
+- Push back when there is substance to push back on.
+
+Console output stays ASCII. Source files are UTF-8, but printed output runs
+through a cp1252 terminal on Windows.
+
+## Decision record
+
+`docs/decisions.md`, newest first. Add an entry for anything that would
+otherwise be re-argued later, including decisions that went against the
+handoff and why.
