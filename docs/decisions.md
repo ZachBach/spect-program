@@ -1,0 +1,99 @@
+# Decision record
+
+One entry per decision that would otherwise be re-argued later. Newest first.
+
+---
+
+## D2. Disable the GitKraken Claude Code plugin in this repository
+
+**Date:** 2026-09-22
+**Status:** Applied, with a verification step still outstanding.
+
+### What was found
+
+The GitKraken Claude Code plugin registers hooks on **every lifecycle event**,
+including prompt submission and tool use, before and after. Hooks receive the
+event payload on stdin, so in principle prompts and tool results pass through
+the vendor's local binary. The build in use was an alpha, with automatic
+updates enabled.
+
+GitKraken's public position, per their documentation and a GitLens issue
+thread, is that only event metadata is forwarded and that prompt content,
+agent output and source code are not captured. A local inspection found
+nothing contradicting that, though absence of evidence in a diagnostic log is
+weak: a payload can be transmitted without being logged.
+
+The forensic detail of that inspection is deliberately not recorded here.
+Local paths, cache sizes and installed versions describe a particular machine
+rather than this project, and a public repository is the wrong place to
+publish a software fingerprint of the person running it.
+
+### Why it is disabled here anyway
+
+Not because GitKraken is believed to be doing anything improper. The argument
+does not depend on that.
+
+PPMI's Data Use Agreement v5.0 requires **guaranteeing** containment of
+participant-level data. An auto-updating alpha build that subscribes to every
+tool-use event cannot clear that bar, because the guarantee has to hold for
+whatever version installs itself next, not only the one audited today. A
+vendor statement about current behaviour is not a containment guarantee, and
+the obligation under the agreement sits with the researcher, not the vendor.
+
+The cost of being wrong is asymmetric. Disabling it here loses a convenience
+feature in one repository. Leaving it enabled risks a disclosure that cannot
+be undone and that would be discovered, if at all, after the fact.
+
+### What was done
+
+`.claude/settings.json` in this repository sets the plugin to `false`. Project
+settings take precedence over user settings, so the plugin stays available for
+every other repository, including labOptimal and the website, where no data
+use agreement applies.
+
+### Outstanding, and it matters
+
+1. **The override has not been empirically verified.** It follows from the
+   documented precedence order, but it was not observed working, because that
+   requires a session restart. Confirm the plugin is inactive here before any
+   data arrives. `/plugin` should show it disabled.
+2. **GitKraken Desktop may reinstall the hooks independently.** A GitKraken
+   Desktop release is reported to have installed Claude Code hooks without
+   prompting, with the opt-out added in a later version. Disabling the Claude
+   Code plugin may not stop a separate installation path. Check GitKraken
+   Desktop's own settings for the agent-session opt-out.
+3. **Ask GitKraken directly**, in writing, what a hook payload contains and
+   whether any of it leaves the machine. A written answer is worth more than
+   this inference, and it is the kind of thing an IRB or a data controller
+   will ask for.
+
+### Related
+
+An unexplained `git add -A` staged 51 files in the labOptimal repository
+during an active session on 2026-09-21. The cause was never established;
+candidates include this integration, the VS Code extension, or a concurrent
+session. It is the reason the data guard in this repository was built before
+anything else rather than last. See D1.
+
+---
+
+## D1. Build the data guard before anything it guards
+
+**Date:** 2026-09-21
+**Status:** Applied.
+
+The handoff listed the pre-commit hook as task 6 of 6. It was built as task 1.
+
+A repository that will hold DICOM paths, NIfTI volumes and PPMI tables should
+not exist for even one commit without the thing that stops those from being
+committed. Git history is permanent; a file committed and then deleted remains
+in the object store, in every clone and in every fork.
+
+This was reinforced by the staging incident in D1's "Related" note above:
+something in this environment stages files without being asked, so the hook is
+not a backstop for human error alone.
+
+The guard was tested before it was trusted. A force-added `.nii` is blocked, a
+DICOM renamed to `meeting_notes.txt` is blocked on its magic bytes at offset
+128, a participant CSV is blocked, and an allow-listed synthetic fixture
+passes.

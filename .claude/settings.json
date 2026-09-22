@@ -1,0 +1,5 @@
+{
+  "enabledPlugins": {
+    "gitkraken-hooks@gitkraken": false
+  }
+}
