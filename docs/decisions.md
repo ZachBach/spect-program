@@ -4,6 +4,61 @@ One entry per decision that would otherwise be re-argued later. Newest first.
 
 ---
 
+## D5. The phantom still cannot demonstrate a hybrid advantage, for a second reason
+
+**Date:** 2026-09-22
+**Status:** Open. Blocks the CNN half of S6-5 from being meaningful.
+
+The Cox baseline was run end to end on phantoms: trajectories, rendered
+volumes, binding ratios read off those volumes, leave-one-site-out, fit on
+training sites only. Forty subjects per fold, 100 subjects total.
+
+| fold | test n | events | C |
+|---|---|---|---|
+| leave-out-site-0 | 20 | 12 | 0.606 |
+| leave-out-site-1 | 20 | 12 | 0.695 |
+| leave-out-site-2 | 20 | 18 | 0.631 |
+| leave-out-site-3 | 20 | 13 | 0.490 |
+| leave-out-site-4 | 20 | 11 | 0.610 |
+
+Mean held-out C is 0.606 against an oracle ceiling of 0.642. The baseline
+recovers nearly everything the data contains, leaving about four points of
+headroom, and that is before accounting for fold-to-fold noise: site 3 came
+in below chance on thirteen events, which is what twenty subjects buys.
+
+**Why this happens, and why it is a flaw in the fixture rather than a
+result.** Latent severity in `progression.py` is by construction a weighted
+sum of baseline loss and progression rate. A putamen binding ratio measures
+baseline loss almost directly, and differencing two of them recovers the rate.
+So the hand-crafted features are close to sufficient statistics for the
+outcome, and no model reading the volumes can do much better, because there is
+nothing left in the volume that the outcome depends on.
+
+D3 recorded that the classification task saturates. This is the same problem
+one level up: the prognostic task has headroom against a *baseline-only*
+model, which D4 measured, but almost none against a baseline that also uses
+the follow-up scan.
+
+**What would fix it.** The outcome has to depend on something a scalar
+region mean discards. The obvious candidate is already in the phantom and
+currently unused: the posterior-to-anterior gradient. Its steepness is a
+spatial property that a volume-reading model can see and a mean binding ratio
+throws away by definition. Adding a `severity_from_gradient` term would make
+"a model reading the whole volume beats one reading region means" a testable
+claim rather than an assumed one, exactly as `severity_from_rate` did for the
+longitudinal claim in D4.
+
+That change needs the same control D4 has: with the gradient weight at zero,
+the volume model must not beat the region-mean model, or the fixture is
+rewarding capacity rather than information.
+
+**Until then**, a CNN trained on these phantoms would be measuring its own
+ability to reconstruct a binding ratio. That is a useful smoke test for the
+training loop and nothing more, and it must not be reported as evidence about
+the hybrid hypothesis.
+
+---
+
 ## D4. The prognostic task has headroom, unlike the classification task
 
 **Date:** 2026-09-22

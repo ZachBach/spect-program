@@ -39,7 +39,7 @@ Two consequences that follow:
 
 ```sh
 git config core.hooksPath .githooks    # once per clone, before anything else
-python -m pytest                       # 150 tests, about 14 seconds
+python -m pytest                       # 182 tests, about 15 seconds
 python -m pytest tests/test_survival.py
 python -m pytest -k "leak or provenance"
 ```
@@ -63,7 +63,9 @@ src/spect/
   eval/
     splits.py         Leak-proof split construction
     survival.py       Concordance, Kaplan-Meier, time-dependent AUC, calibration
-  io/ preprocess/ models/    empty; see README
+  models/
+    cox.py            Cox PH baseline, Newton-Raphson, Breslow ties
+  io/ preprocess/            empty; see README
 ```
 
 ## Guards, and why none of them have an override
@@ -124,6 +126,14 @@ arithmetic and nothing about anatomy.
   is unbiased only if censoring is independent of risk, which is usually
   optimistic. Inverse-probability-of-censoring weighting is the correction and
   is not implemented. `excluded_censored` reports the exposure.
+- **The baseline nearly saturates the phantom too.** Held-out C is 0.606
+  against a 0.642 ceiling, because latent severity is built from quantities
+  binding ratios measure directly. A CNN trained on these phantoms would be
+  learning to reconstruct a binding ratio. See D5 before reading any hybrid
+  result off this fixture.
+- **No deep learning dependency is installed.** numpy only; no torch, scipy,
+  lifelines or scikit-survival. Adding torch is the owner's decision, not a
+  detail to settle while implementing.
 - **The GitKraken plugin is disabled here** and the override has not been
   verified empirically. See D2 in `docs/decisions.md`.
 
