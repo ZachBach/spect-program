@@ -11,22 +11,36 @@ the research side of that line and makes no clinical claims.
 
 Owner: Zachary Auerbach, doing business as Aurelius Dynamic.
 
+**No participant data has been requested, received or processed.** Everything
+runs on synthetic phantoms. Every number this repository can currently produce
+is a property of a fixture, not a finding about anyone's brain.
+
 ## Install
 
 ```sh
-git config core.hooksPath .githooks
+git config core.hooksPath .githooks    # once per clone, before anything else
+python -m pytest                       # 213 tests, about 25 seconds
 ```
 
-Once per clone, before anything else. Without it the pre-commit guard does not
-run. See "The guard" below for what it stops.
+Without the hook configuration the data guard does not run. See "The guard".
+
+`pyproject.toml` sets `pythonpath = ["src"]`, so no install is needed to run
+the tests. Core dependencies are numpy and pytest.
+
+torch is optional and only `models/hybrid.py` imports it, so everything else
+runs without it and those tests skip:
+
+```sh
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
 
 ## Data rules
 
 These are not conventions. They come from data use agreements with teeth.
 
-**1. No participant-level data in any AI tool.** Not this repository's assistant,
-not Claude Code, not Copilot, not any cloud assistant. PPMI's Data Use
-Agreement v5.0 (April 2026) prohibits AI tools that do not guarantee
+**1. No participant-level data in any AI tool.** Not this repository's
+assistant, not Claude Code, not Copilot, not any cloud assistant. PPMI's Data
+Use Agreement v5.0 (April 2026) prohibits AI tools that do not guarantee
 containment. Work from code, file schemas, synthetic phantoms and aggregate
 outputs. Treat NAPS2, Dementias Platform UK and every other clinical dataset
 the same way until their own terms say otherwise.
@@ -44,37 +58,66 @@ committed and then deleted is still in the object store, in every clone and in
 every fork. Tables and volumes live outside the repository and loaders take a
 path from config.
 
-## The guard
+## The guards
 
-Two layers, because one is not enough.
+Five checks are structural rather than advisory. Each one guards a failure
+that produces no error and no warning, only a wrong number that looks right.
+None of them has an override, and a test asserts that none is added.
 
-`.gitignore` stops the accident: imaging formats, archives, participant
-tables, trained weights, credentials.
+**The data guard.** `.gitignore` stops the accident. `.githooks/pre-commit`
+stops everything else: it reads what is actually staged, so it covers
+`git add -f` and tooling that stages files without being asked. It blocks
+imaging formats, anything inside a data directory, trained weights and
+credentials, checks DICOM magic bytes at offset 128 so a volume renamed to
+`.txt` is still caught, and refuses anything over 2 MB.
 
-`.githooks/pre-commit` stops everything else. It reads what is actually staged,
-so it covers `git add -f` and tooling that stages files without being asked.
-It blocks the same extensions, blocks anything inside a data directory, checks
-DICOM magic bytes at offset 128 so a volume renamed to `.txt` is still caught,
-and refuses anything over 2 MB.
-
-There is no override flag. If the hook is wrong, change the hook in a commit
-someone reviews.
-
-Verified by test before it was committed: a force-added `.nii` is blocked, a
+Verified by test before it was trusted: a force-added `.nii` is blocked, a
 DICOM renamed to `meeting_notes.txt` is blocked on its magic bytes, a
 participant CSV is blocked, and an allow-listed synthetic fixture passes.
+
+**Splits that cannot leak.** `Split.__post_init__` refuses any partition
+placing one subject on both sides, so a leaking split cannot be constructed,
+passed around or serialized. Yagis et al. 2021 measured 48 points of accuracy
+inflation from slice-level splits on PPMI, with randomly shuffled labels still
+scoring about 96%. The subtle case is a participant who transferred centres:
+leave-one-site-out looks airtight and is not.
+
+**Provenance that will not mix.** `NormalDatabase.z_scores` refuses to score a
+real scan against a database built from phantoms, and `subject_provenance` has
+no default, so the claim has to be written out before it can be refused.
+
+**Concordance that refuses to guess.** `concordance_index` raises when no
+pairs are comparable rather than returning 0.5. A censored subject with the
+earlier time is comparable with nobody.
+
+**A measured ceiling.** `oracle_ceiling` reports what a model knowing the true
+latent severity would score. Event times are stochastic, so perfect ordering is
+impossible, and a concordance published without its ceiling invites being read
+as mediocre when it is at the limit of the data.
 
 ## Layout
 
 ```
-configs/          experiment configs; data paths live here, never in code
-src/io/           DICOM and NIfTI loaders (no real paths committed)
-src/preprocess/   spatial normalization, occipital reference, striatal crop
-src/features/     binding ratio and z-score baselines
-src/models/       baseline survival model; hybrid CNN plus tabular fusion
-src/eval/         C-index, time-dependent AUC, calibration, leave-site-out
-src/synthetic/    phantom generator for end-to-end tests
-tests/
+src/spect/
+  provenance.py       Provenance enum and ProvenanceError; shared
+  synthetic/
+    phantom.py        DaT-SPECT phantoms: PSF, Poisson noise, spatial gradient
+    cohort.py         Cohorts with between-subject variation
+    progression.py    Longitudinal trajectories, milestones, oracle ceiling
+  features/
+    binding_ratio.py  SBR per structure; asymmetry; putamen/caudate ratio
+    normal_database.py  Z-score baseline, with the provenance guard
+    spatial.py        Posterior/anterior contrast; what a region mean discards
+  eval/
+    splits.py         Leak-proof split construction, leave-one-site-out
+    survival.py       Concordance, Kaplan-Meier, time-dependent AUC, calibration
+  models/
+    cox.py            Cox PH baseline, Newton-Raphson, Breslow ties
+    hybrid.py         3D CNN plus tabular fusion, Cox loss (needs torch)
+  io/ preprocess/     empty; loaders and spatial normalization go here
+configs/              experiment configs; data paths live here, never in code
+tests/                213 tests
+docs/decisions.md     decision record, newest first
 ```
 
 ## Research question
@@ -96,15 +139,43 @@ slice-level splits on PPMI inflate accuracy by 48%, with random labels scoring
 about 96% against a 50% chance baseline. Both failure modes are invisible
 unless the analysis plan is fixed first.
 
+## On reading anything this repository produces
+
+The phantom is a geometric stand-in with invented parameters. It models
+partial volume blur, Poisson counting noise and the posterior-to-anterior
+gradient, because omitting any of them would make the fixture easier than
+reality in the direction that flatters a model. It is still not a scan, and
+nothing measured on it says anything about real data.
+
+Two limits are recorded in `docs/decisions.md` and matter before any result is
+read off this fixture:
+
+- **Separating patients from controls saturates.** The z-score baseline
+  reaches AUC 1.000 at moderate loss, leaving no headroom. That mirrors the
+  published saturation of the same task and is why prognosis, not
+  classification, is the target. See D3.
+- **`severity_from_gradient` defaults to zero.** With it at zero the outcome
+  is a function of quantities region means measure directly, so a network is
+  learning to reconstruct a binding ratio and its score is a smoke test. Set
+  it above zero before reading any hybrid result, and check the network also
+  beats `features/spatial.py`: anything a posterior/anterior split can find is
+  not evidence a network was needed. See D5.
+
+Every synthetic comparison carries a control. A fixture where two scans always
+beat one would reward the second scan rather than the information in it, so
+the generator's severity weights can be set to zero and a test requires the
+advantage to vanish when they are.
+
 ## Status
 
-Scaffolding only. No data has been requested, received or processed. The PPMI
-application is not yet submitted.
+Analysis pipeline built and validated on synthetic fixtures. No data has been
+requested, received or processed. The PPMI application is not yet submitted.
 
-Order of work, which differs from the handoff on one point: the guard was
-built first rather than last. The handoff listed it as task 6. A repository
-that will hold imaging paths should not exist for a single commit without the
-thing that stops imaging from being committed.
+Order of work departed from the plan on one point: the data guard was built
+first rather than last. A repository that will hold imaging paths should not
+exist for a single commit without the thing that stops imaging from being
+committed. That decision is D1 in the decision record, along with the reason
+it was reinforced.
 
 ## Licence
 
