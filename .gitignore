@@ -1,44 +1,83 @@
-# Imaging and participant data must never enter this repository.
+# This repository denies by default and permits by exception.
 #
-# This file is the first of two guards. It stops the accident. The second is
-# .githooks/pre-commit, which stops the deliberate override, because
-# `git add -f` ignores everything in here.
+# The usual shape is the opposite: track everything, list what to exclude. That
+# is the wrong default here. This repository will hold paths to DICOM and NIfTI
+# volumes and to PPMI tables held under a data use agreement, and the cost of
+# the two mistakes is not symmetric. Forgetting to exclude a file publishes it,
+# permanently, because git history has no clean undo. Forgetting to include one
+# produces an error message at the moment you try to add it.
 #
-# PPMI Data Use Agreement v5.0 (April 2026) restricts redistribution of
-# participant-level data. Git history is effectively permanent: a file
-# committed and then deleted is still in the object store, still in every
-# clone, and still in every fork. There is no clean undo.
+# So: `*` denies everything, the `!` lines below permit the handful of file
+# kinds this project legitimately contains, and the final section re-denies
+# anything that would otherwise slip through a permit.
+#
+# **If `git add` refuses a file you meant to track**, that is this file working.
+# Add a permit for it deliberately, and check first whether the file describes
+# the project or the person. Two files were committed here that described the
+# person: a personal task list and the local paths, cache size and version of
+# an installed vendor binary. Neither belonged in a public repository.
+#
+# This is the first of two layers. `git add -f` overrides everything here, so
+# `.githooks/pre-commit` re-checks what is actually staged. Neither layer has
+# an override.
 
-# --- imaging formats ---------------------------------------------------------
-*.dcm
-*.DCM
-*.ima
-*.IMA
-*.nii
-*.nii.gz
-*.img
-*.hdr
-*.mhd
-*.mha
-*.raw
-*.nrrd
-*.nhdr
-*.v
-*.par
-*.rec
-*.analyze
-*.minc
-*.mnc
+# --- deny everything ---------------------------------------------------------
+*
 
-# --- archives, which hide the above -----------------------------------------
-*.zip
-*.tar
-*.tar.gz
-*.tgz
-*.7z
-*.rar
+# Descend into directories, otherwise the permits below are unreachable.
+!*/
 
-# --- data directories --------------------------------------------------------
+# --- permit: source and tests ------------------------------------------------
+!*.py
+
+# --- permit: documentation ---------------------------------------------------
+!*.md
+
+# --- permit: project configuration -------------------------------------------
+!pyproject.toml
+!.gitignore
+!.gitattributes
+!.githooks/pre-commit
+!.claude/settings.json
+
+# Fixture data is permitted at the very bottom of this file, not here. A permit
+# placed above the `*.csv` denial below would be overridden by it, silently.
+
+
+# =============================================================================
+# RE-DENY. Everything below overrides the permits above, because gitignore
+# resolves later rules last. Order matters: these must stay at the bottom.
+# =============================================================================
+
+# --- environments and caches -------------------------------------------------
+# Without these, `!*.py` above would happily track every file in a virtualenv.
+.venv/
+venv/
+env/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+htmlcov/
+.coverage
+
+# --- personal working notes --------------------------------------------------
+# Task lists naming applications, schedules or people are working notes, not
+# project documentation. The site repository applies the same rule to
+# znatodos.md.
+TASKS.local.md
+*.local.md
+human-tasks.md
+docs/human-tasks.md
+NOTES.md
+TODO.md
+
+# --- participant data, in any form -------------------------------------------
+# Redundant against `*` above and kept anyway. If someone later adds a permit
+# for a directory or an extension, these still hold, because they are last.
 data/
 Data/
 DATA/
@@ -55,10 +94,35 @@ cohorts/
 participants/
 derivatives/
 
-# --- tabular participant data ------------------------------------------------
-# PPMI ships clinical and binding-ratio tables as CSV. Keep every table
-# outside the repository; the loaders take a path from config, never a
-# committed file.
+*.dcm
+*.DCM
+*.ima
+*.IMA
+*.nii
+*.nii.gz
+*.img
+*.hdr
+*.mhd
+*.mha
+*.raw
+*.nrrd
+*.nhdr
+*.v
+*.par
+*.rec
+*.minc
+*.mnc
+
+# Archives hide all of the above.
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# Tabular participant data. PPMI ships clinical and binding-ratio tables as
+# CSV; loaders take a path from config and the tables live outside the repo.
 *.csv
 *.tsv
 *.xlsx
@@ -66,13 +130,9 @@ derivatives/
 *.sav
 *.dta
 
-# Explicit exceptions: small, synthetic, and checked by a human before being
-# un-ignored. Add them one at a time with a reason, never with a wildcard.
-!tests/fixtures/synthetic_*.csv
-
-# --- model weights -----------------------------------------------------------
+# --- trained weights ---------------------------------------------------------
 # A model trained on participant-level PPMI data may only be shared through
-# routes MJFF approves. Code ships MIT; weights do not ship at all.
+# routes MJFF approves. Code ships MIT; weights do not ship.
 *.pt
 *.pth
 *.ckpt
@@ -95,31 +155,18 @@ lightning_logs/
 credentials.json
 loni_*.txt
 
-# --- ordinary python ---------------------------------------------------------
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-*.egg-info/
-dist/
-build/
-.coverage
-htmlcov/
-
-# --- editor / os -------------------------------------------------------------
+# --- editor and OS -----------------------------------------------------------
 .DS_Store
 Thumbs.db
 .idea/
+.vscode/
 *.swp
 
-# --- personal working notes ---------------------------------------------------
-# Task lists naming applications, schedules or people are working notes, not
-# project documentation, and this repository is public. The same rule the site
-# repo applies to znatodos.md.
-TASKS.local.md
-*.local.md
-human-tasks.md
-docs/human-tasks.md
+# --- permit: narrow, reviewed fixtures ---------------------------------------
+# Last, because a permit only beats a denial written above it. One fixture at a
+# time, with a reason, never by wildcard. A fixture must be synthetic and small
+# enough for a reviewer to read in full.
+#
+# `.githooks/pre-commit` carries the matching exception, so the two layers
+# agree on exactly one allowed path shape.
+!tests/fixtures/synthetic_*.csv
