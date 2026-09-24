@@ -114,3 +114,12 @@ htmlcov/
 Thumbs.db
 .idea/
 *.swp
+
+# --- personal working notes ---------------------------------------------------
+# Task lists naming applications, schedules or people are working notes, not
+# project documentation, and this repository is public. The same rule the site
+# repo applies to znatodos.md.
+TASKS.local.md
+*.local.md
+human-tasks.md
+docs/human-tasks.md

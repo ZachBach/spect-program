@@ -166,6 +166,30 @@ beat one would reward the second scan rather than the information in it, so
 the generator's severity weights can be set to zero and a test requires the
 advantage to vanish when they are.
 
+## Known limits in the code
+
+Not bugs. Choices with consequences, recorded so they are not rediscovered as
+surprises, and so nobody reads a result without them.
+
+- **`io/` and `preprocess/` are empty on purpose.** DICOM and NIfTI loaders
+  and spatial normalization should be written against real file layouts
+  rather than guessed at now. Orientation in particular must be established
+  from the file; `features/spatial.py` assumes the phantom's own convention
+  and says so in its module docstring.
+- **Proportional hazards is never tested.** `models/cox.py` assumes a
+  covariate multiplies the hazard by a constant factor at every time. If a
+  binding ratio predicts an early milestone strongly and a late one weakly,
+  a single coefficient averages over the difference. That check belongs with
+  real data, before any result is believed.
+- **Time-dependent AUC has no IPCW correction.** Subjects censored before the
+  horizon are excluded, which is unbiased only if censoring is independent of
+  risk. If sicker participants drop out earlier, and they usually do, it reads
+  high. `excluded_censored` reports the size of the exposure rather than
+  leaving it implicit.
+- **Ties use Breslow, not Efron.** Documented in `models/cox.py` and pinned by
+  a test. With continuous follow-up times exact ties are rare; visit-rounded
+  times would produce many, and the bias then runs toward zero.
+
 ## Status
 
 Analysis pipeline built and validated on synthetic fixtures. No data has been
