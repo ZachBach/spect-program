@@ -140,8 +140,10 @@ arithmetic and nothing about anatomy.
 - **Seed the model as well as the training loop.** Weights are initialized at
   construction, so `train(seed=...)` alone leaves runs starting from different
   weights while appearing seeded.
-- **The GitKraken plugin is disabled here** and the override has not been
-  verified empirically. See D2 in `docs/decisions.md`.
+- **The GitKraken plugin and three account-synced plugins are disabled here**
+  because their hooks can see prompts, tool output or the transcript. Neither
+  override has been verified empirically, and the synced set can change
+  without any change to this repository. See D2 and D6 in `docs/decisions.md`.
 
 ## Writing style for this project
 

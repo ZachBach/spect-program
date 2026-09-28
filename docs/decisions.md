@@ -4,6 +4,64 @@ One entry per decision that would otherwise be re-argued later. Newest first.
 
 ---
 
+## D6. Disable the account-synced plugins whose hooks can see session content
+
+**Date:** 2026-09-28
+**Status:** Applied, with the same verification step D2 left open.
+
+### What was found
+
+D2 disabled one plugin by name. Three more were loading in sessions here
+anyway, because they arrive through the owner's Claude account rather than
+being installed in this repository: `carta-investors`, `security-guidance` and
+`cockroachdb`. None of them has anything to do with this project. Their hooks,
+read from each plugin's `hooks.json`:
+
+- `carta-investors` runs on every session start and every submitted prompt.
+  Its tool hooks match only its own tools and the Skill tool.
+- `security-guidance` runs on every session start, every submitted prompt,
+  after every Bash command and every file edit, and on Stop, whose payload
+  includes the path to the session transcript.
+- `cockroachdb` runs after every file write or edit, and before its own SQL
+  tool.
+
+What their scripts do with the payloads was not inspected.
+
+### Why they are disabled
+
+D2's argument applies without change. A participant file printed by a shell
+command, pasted into a prompt or written by an edit would reach at least one
+of these hooks, and the Stop hook can reach everything. A containment
+guarantee cannot rest on the current behaviour of code that updates itself or
+that a remote sync can replace.
+
+### What was done
+
+`.claude/settings.json` sets `carta-investors@synced`,
+`security-guidance@synced` and `cockroachdb@synced` to `false`, beside the
+existing GitKraken entry. The `@synced` form is the one already in use at user
+level for another synced plugin.
+
+### Outstanding
+
+1. **Not verified empirically.** A headless session loads no synced plugins at
+   all, so it cannot show the difference. Open an interactive session here and
+   confirm none of the three loads, before any data arrives.
+2. **This list goes stale on its own.** The account sync can add a plugin with
+   hooks without any change to this repository. Re-check what loads here
+   whenever the synced set changes, and always before data arrives.
+3. **The GitKraken MCP server is not a plugin** and still loads in sessions
+   started here. It receives only the calls a session makes to it, not every
+   event, but it is a local process running as the same user and this change
+   does not cover it.
+4. **Participant-data work will run in the same user environment as this
+   development tooling**, by the owner's decision on 2026-09-28, not in an
+   isolated one. Settings like these constrain Claude Code sessions and nothing
+   else on the machine, so the containment argument rests on them and on
+   repeating this review.
+
+---
+
 ## D5. The phantom still cannot demonstrate a hybrid advantage, for a second reason
 
 **Date:** 2026-09-22

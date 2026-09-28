@@ -1,5 +1,8 @@
 {
   "enabledPlugins": {
-    "gitkraken-hooks@gitkraken": false
+    "gitkraken-hooks@gitkraken": false,
+    "carta-investors@synced": false,
+    "security-guidance@synced": false,
+    "cockroachdb@synced": false
   }
 }
